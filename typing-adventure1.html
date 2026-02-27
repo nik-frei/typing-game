@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Typing Adventure 🚀</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow-x: hidden; }
+body {
+  background: linear-gradient(135deg, #0f0b1e 0%, #1a1145 40%, #0d1b2a 100%);
+  color: #e0e7ff;
+  font-family: 'Nunito', 'Segoe UI', sans-serif;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+@keyframes twinkle { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
+@keyframes float { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-12px); } }
+@keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+@keyframes flicker { 0%, 100% { opacity: 0.8; } 50% { opacity: 0.4; } }
+@keyframes shake { 0%, 100% { transform: translateX(0); } 20% { transform: translateX(-4px); } 40% { transform: translateX(4px); } 60% { transform: translateX(-3px); } 80% { transform: translateX(3px); } }
+@keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes popIn { from { opacity: 0; transform: scale(0.5); } to { opacity: 1; transform: scale(1); } }
+@keyframes glow { 0%, 100% { text-shadow: 0 0 20px rgba(129,140,248,0.3); } 50% { text-shadow: 0 0 40px rgba(129,140,248,0.6), 0 0 80px rgba(129,140,248,0.3); } }
+
+.star { position: absolute; width: 2px; height: 2px; background: #fff; border-radius: 50%; }
+.mono { font-family: 'JetBrains Mono', 'Fira Code', monospace; }
+
+button { font-family: 'Nunito', sans-serif; cursor: pointer; transition: all 0.2s; }
+button:active { transform: scale(0.97) !important; }
+
+.btn-primary {
+  padding: 16px 48px; font-size: 20px; font-weight: 800; border-radius: 16px; border: none;
+  background: linear-gradient(135deg, #6366f1, #818cf8); color: #fff;
+  box-shadow: 0 4px 24px rgba(99,102,241,0.4); letter-spacing: 0.5px;
+}
+.btn-primary:hover { transform: scale(1.05); box-shadow: 0 8px 32px rgba(99,102,241,0.6); }
+
+.btn-secondary {
+  padding: 12px 36px; font-size: 16px; font-weight: 700; border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.05);
+  color: rgba(255,255,255,0.7);
+}
+.btn-secondary:hover { background: rgba(255,255,255,0.1); }
+
+.btn-small {
+  padding: 6px 16px; font-size: 13px; font-weight: 700; border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05);
+  color: rgba(255,255,255,0.5);
+}
+
+.card {
+  background: rgba(255,255,255,0.03); border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.06);
+}
+
+.key-btn {
+  width: 40px; height: 40px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
+  transition: all 0.15s ease; position: relative;
+  font-family: 'JetBrains Mono', monospace;
+}
+.key-btn .home-bump {
+  position: absolute; bottom: 5px; width: 8px; height: 2px;
+  background: rgba(255,255,255,0.3); border-radius: 1px;
+}
+
+/* iPad keyboard compat */
+.hidden-input {
+  position: fixed; top: -100px; left: -100px; opacity: 0;
+  width: 1px; height: 1px; font-size: 16px; /* prevents zoom on iOS */
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+  .key-btn { width: 30px; height: 34px; font-size: 12px; border-radius: 6px; }
+  .typing-text { font-size: 20px !important; letter-spacing: 1px !important; }
+  .stats-bar { gap: 12px !important; padding: 10px 16px !important; }
+  .stat-value { font-size: 18px !important; }
+  .rocket-col { display: none; }
+}
+</style>
+</head>
+<body>
+
+<div id="app"></div>
+
+<script>
+// ─── State ───
+const MASTERY_THRESHOLD = 75;
+const RECENT_WINDOW = 10;
+const ALL_KEYS = "abcdefghijklmnopqrstuvwxyz".split("");
+const HOME_ROW = ["a","s","d","f","j","k","l"];
+
+const FINGER_MAP = {
+  a:"L-Pinky",s:"L-Ring",d:"L-Middle",f:"L-Index",g:"L-Index",h:"R-Index",j:"R-Index",
+  k:"R-Middle",l:"R-Ring",q:"L-Pinky",w:"L-Ring",e:"L-Middle",r:"L-Index",t:"L-Index",
+  y:"R-Index",u:"R-Index",i:"R-Middle",o:"R-Ring",p:"R-Pinky",z:"L-Pinky",x:"L-Ring",
+  c:"L-Middle",v:"L-Index",b:"L-Index",n:"R-Index",m:"R-Index"
+};
+
+const WORDS = {
+  easy:["cat","dog","hat","sun","red","big","fun","run","hop","cup","log","map","net","pin","top","van","wig","box","yes","zip","ant","bed","dig","egg","fig","gum","hen","ink","jam","kit"],
+  medium:["jump","fish","blue","tree","frog","duck","bear","cake","moon","star","book","bell","drum","flag","gift","hand","kite","lamp","nest","pond","ring","ship","tent","wave","yarn"],
+  hard:["adventure","butterfly","champion","dinosaur","elephant","fantastic","giraffe","homework","imagine","joyful","kangaroo","lemonade","mountain","notebook","octopus","parachute","question","rainbow","sandwich","treasure"]
+};
+
+const FUN_FACTS = [
+  "🚀 Astronauts float in space because they're in constant freefall!",
+  "⭐ There are more stars in the universe than grains of sand on Earth!",
+  "🌍 Earth spins at about 1,000 miles per hour!",
+  "🌙 The Moon is slowly drifting away from Earth!",
+  "☀️ Light from the Sun takes 8 minutes to reach Earth!",
+  "🪐 Saturn could float in a giant bathtub — it's less dense than water!",
+  "🔭 The Milky Way has over 100 billion stars!",
+  "🛸 A day on Venus is longer than its year!",
+  "💫 Neutron stars can spin 600 times per second!",
+  "🌌 Space is completely silent — no air means no sound!"
+];
+
+const ENCOURAGEMENTS = [
+  "Amazing! 🌟","You're a star! ⭐","Keep going, astronaut! 🚀","Incredible typing! 💫",
+  "You're on fire! 🔥","Super speed! ⚡","Wow, look at you go! 🎯","Nailed it! 🎉",
+  "Typing champion! 🏆","Fantastic work! 🌈"
+];
+
+let state = {
+  screen: "menu",
+  keyStats: {},
+  level: 1, xp: 0, totalXp: 0,
+  target: "", typed: "", errors: new Set(), currentErrors: 0,
+  totalChars: 0, correctChars: 0, streak: 0, bestStreak: 0,
+  startTime: null, wpm: 0, roundComplete: false, roundsPlayed: 0,
+  encouragement: "", funFact: ""
+};
+
+// Load saved progress
+try {
+  const saved = localStorage.getItem("typing-adventure-save");
+  if (saved) {
+    const d = JSON.parse(saved);
+    state.keyStats = d.keyStats || {};
+    state.level = d.level || 1;
+    state.totalXp = d.totalXp || 0;
+  }
+} catch(e) {}
+
+// Init key stats
+ALL_KEYS.forEach(k => {
+  if (!state.keyStats[k]) state.keyStats[k] = { attempts:0, errors:0, recentResults:[], mastery:50, lastPracticed:0 };
+});
+
+function saveProgress() {
+  try {
+    localStorage.setItem("typing-adventure-save", JSON.stringify({
+      keyStats: state.keyStats, level: state.level, totalXp: state.totalXp
+    }));
+  } catch(e) {}
+}
+
+function calcMastery(stat) {
+  if (stat.attempts === 0) return 50;
+  const recent = stat.recentResults.slice(-RECENT_WINDOW);
+  if (recent.length === 0) return 50;
+  const recentAcc = recent.filter(Boolean).length / recent.length;
+  const overallAcc = (stat.attempts - stat.errors) / stat.attempts;
+  return Math.round(recentAcc * 70 + overallAcc * 30);
+}
+
+function getWeakKeys(count = 5) {
+  return ALL_KEYS
+    .filter(k => state.keyStats[k].attempts > 0)
+    .sort((a,b) => state.keyStats[a].mastery - state.keyStats[b].mastery)
+    .slice(0, count);
+}
+
+function pickWord(weakKeys, difficulty) {
+  const list = WORDS[difficulty] || WORDS.easy;
+  if (weakKeys.length > 0) {
+    const ws = new Set(weakKeys);
+    const targeted = list.filter(w => [...w].some(c => ws.has(c)));
+    if (targeted.length > 0) return targeted[Math.floor(Math.random() * targeted.length)];
+  }
+  return list[Math.floor(Math.random() * list.length)];
+}
+
+function generateSequence(count = 6) {
+  const weak = getWeakKeys();
+  const diff = state.level <= 3 ? "easy" : state.level <= 7 ? "medium" : "hard";
+  const words = [];
+  for (let i = 0; i < count; i++) words.push(pickWord(i < 3 ? weak : [], diff));
+  return words.join(" ");
+}
+
+function startRound() {
+  state.target = generateSequence();
+  state.typed = "";
+  state.errors = new Set();
+  state.currentErrors = 0;
+  state.startTime = null;
+  state.roundComplete = false;
+  state.funFact = "";
+  state.encouragement = "";
+  render();
+  setTimeout(() => document.getElementById("hinput")?.focus(), 100);
+}
+
+function startGame() {
+  state.screen = "game";
+  state.totalChars = 0;
+  state.correctChars = 0;
+  state.streak = 0;
+  state.bestStreak = 0;
+  state.wpm = 0;
+  state.xp = 0;
+  state.roundsPlayed = 0;
+  startRound();
+}
+
+// ─── Input Handling ───
+function handleKey(e) {
+  if (state.screen !== "game" || state.roundComplete) return;
+  if (e.key === "Escape") { state.screen = "menu"; render(); return; }
+  if (e.key.length !== 1 && e.key !== "Backspace") return;
+  e.preventDefault();
+
+  if (e.key === "Backspace") {
+    state.typed = state.typed.slice(0, -1);
+    render();
+    return;
+  }
+
+  const pos = state.typed.length;
+  if (pos >= state.target.length) return;
+  if (!state.startTime) state.startTime = Date.now();
+
+  const expected = state.target[pos];
+  const isCorrect = e.key === expected;
+  const lk = e.key.toLowerCase();
+
+  // Track stats
+  if (/^[a-z]$/.test(lk)) {
+    const stat = state.keyStats[lk];
+    stat.attempts++;
+    stat.recentResults = [...stat.recentResults.slice(-(RECENT_WINDOW-1)), isCorrect];
+    if (!isCorrect) stat.errors++;
+    stat.mastery = calcMastery(stat);
+    stat.lastPracticed = Date.now();
+
+    if (!isCorrect && /^[a-z]$/.test(expected.toLowerCase()) && expected.toLowerCase() !== lk) {
+      const es = state.keyStats[expected.toLowerCase()];
+      es.attempts++; es.errors++;
+      es.recentResults = [...es.recentResults.slice(-(RECENT_WINDOW-1)), false];
+      es.mastery = calcMastery(es);
+    }
+  }
+
+  state.totalChars++;
+
+  if (isCorrect) {
+    state.typed += e.key;
+    state.correctChars++;
+    state.streak++;
+    if (state.streak > state.bestStreak) state.bestStreak = state.streak;
+
+    if (state.streak > 0 && state.streak % 15 === 0) {
+      state.encouragement = ENCOURAGEMENTS[Math.floor(Math.random() * ENCOURAGEMENTS.length)];
+      setTimeout(() => { state.encouragement = ""; render(); }, 2000);
+    }
+
+    if (state.startTime) {
+      const elapsed = (Date.now() - state.startTime) / 1000 / 60;
+      if (elapsed > 0) state.wpm = Math.round(state.typed.length / 5 / elapsed);
+    }
+
+    // Complete?
+    if (pos + 1 === state.target.length) {
+      const elapsed = (Date.now() - state.startTime) / 1000 / 60;
+      state.wpm = elapsed > 0 ? Math.round(state.target.length / 5 / elapsed) : 0;
+      state.roundComplete = true;
+      state.roundsPlayed++;
+      const roundAcc = state.totalChars > 0 ? state.correctChars / state.totalChars : 1;
+      const earnedXp = Math.round(10 + roundAcc * 20 + Math.min(state.wpm, 50));
+      state.xp += earnedXp;
+      state.totalXp += earnedXp;
+      if (state.xp >= 100) { state.level++; state.xp -= 100; }
+      state.funFact = FUN_FACTS[Math.floor(Math.random() * FUN_FACTS.length)];
+      saveProgress();
+    }
+  } else {
+    state.errors.add(pos);
+    state.currentErrors++;
+    state.streak = 0;
+  }
+
+  render();
+}
+
+document.addEventListener("keydown", handleKey);
+
+// ─── Stars ───
+function makeStars() {
+  let html = '';
+  for (let i = 0; i < 80; i++) {
+    const l = (Math.random()*100).toFixed(1);
+    const t = (Math.random()*100).toFixed(1);
+    const op = (Math.random()*0.7+0.3).toFixed(2);
+    const dur = (2+Math.random()*3).toFixed(1);
+    const del = (Math.random()*3).toFixed(1);
+    html += `<div class="star" style="left:${l}%;top:${t}%;opacity:${op};animation:twinkle ${dur}s ${del}s ease-in-out infinite"></div>`;
+  }
+  return `<div style="position:fixed;inset:0;pointer-events:none;z-index:0">${html}</div>`;
+}
+const starsHTML = makeStars();
+
+// ─── Keyboard Viz ───
+function renderKeyboard(currentKey) {
+  const rows = [["q","w","e","r","t","y","u","i","o","p"],["a","s","d","f","g","h","j","k","l"],["z","x","c","v","b","n","m"]];
+  function mc(key) {
+    const s = state.keyStats[key];
+    if (!s || s.attempts === 0) return "background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);color:rgba(255,255,255,0.7)";
+    const m = s.mastery;
+    if (m >= 90) return "background:rgba(34,197,94,0.35);border:1px solid rgba(34,197,94,0.3);color:rgba(255,255,255,0.7)";
+    if (m >= 75) return "background:rgba(34,197,94,0.2);border:1px solid rgba(34,197,94,0.2);color:rgba(255,255,255,0.7)";
+    if (m >= 50) return "background:rgba(251,191,36,0.2);border:1px solid rgba(251,191,36,0.2);color:rgba(255,255,255,0.7)";
+    return "background:rgba(239,68,68,0.25);border:1px solid rgba(239,68,68,0.2);color:rgba(255,255,255,0.7)";
+  }
+
+  let html = '<div style="display:flex;flex-direction:column;gap:6px;align-items:center">';
+  rows.forEach((row, ri) => {
+    const pl = ri === 1 ? 20 : ri === 2 ? 44 : 0;
+    html += `<div style="display:flex;gap:5px;padding-left:${pl}px">`;
+    row.forEach(key => {
+      const active = currentKey === key;
+      const isHome = HOME_ROW.includes(key);
+      const style = active
+        ? "background:rgba(99,102,241,0.5);border:2px solid #818cf8;color:#fff;transform:scale(1.15);box-shadow:0 0 20px rgba(99,102,241,0.4)"
+        : (isHome ? mc(key).replace("1px solid","2px solid").replace("rgba(255,255,255,0.08)","rgba(255,255,255,0.15)") : mc(key));
+      html += `<div class="key-btn" style="${style}">${key}${isHome ? '<div class="home-bump"></div>' : ''}</div>`;
+    });
+    html += '</div>';
+  });
+  html += `<div style="width:240px;height:34px;border-radius:8px;margin-top:2px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center;font-size:11px;color:rgba(255,255,255,0.3)" class="mono">SPACE</div>`;
+  html += '</div>';
+  return html;
+}
+
+// ─── Mastery Panel ───
+function renderMastery() {
+  const practiced = ALL_KEYS.filter(k => state.keyStats[k].attempts > 0);
+  if (practiced.length === 0) return '';
+  const sorted = [...practiced].sort((a,b) => state.keyStats[a].mastery - state.keyStats[b].mastery);
+  const weak = sorted.filter(k => state.keyStats[k].mastery < MASTERY_THRESHOLD);
+  const strong = sorted.filter(k => state.keyStats[k].mastery >= MASTERY_THRESHOLD).reverse();
+
+  let html = `<div class="card" style="padding:16px 20px">`;
+  html += `<div class="mono" style="font-size:13px;font-weight:700;color:rgba(255,255,255,0.5);margin-bottom:12px;letter-spacing:1px;text-transform:uppercase">Letter Mastery</div>`;
+
+  if (weak.length > 0) {
+    html += `<div style="margin-bottom:12px"><div style="font-size:11px;color:rgba(251,191,36,0.8);margin-bottom:6px;font-weight:600">🎯 Focusing on:</div><div style="display:flex;flex-wrap:wrap;gap:6px">`;
+    weak.forEach(k => {
+      const m = state.keyStats[k].mastery;
+      html += `<div class="mono" style="width:36px;height:36px;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:14px;font-weight:700;text-transform:uppercase;background:rgba(239,68,68,${(0.1+(1-m/100)*0.3).toFixed(2)});border:1px solid rgba(239,68,68,0.3);color:#fca5a5">${k}<div style="font-size:7px;opacity:0.7">${m}%</div></div>`;
+    });
+    html += '</div></div>';
+  }
+
+  if (strong.length > 0) {
+    html += `<div><div style="font-size:11px;color:rgba(34,197,94,0.8);margin-bottom:6px;font-weight:600">✨ Mastered:</div><div style="display:flex;flex-wrap:wrap;gap:6px">`;
+    strong.slice(0,12).forEach(k => {
+      const m = state.keyStats[k].mastery;
+      html += `<div class="mono" style="width:36px;height:36px;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:14px;font-weight:700;text-transform:uppercase;background:rgba(34,197,94,${(0.1+m/400).toFixed(2)});border:1px solid rgba(34,197,94,0.2);color:#86efac">${k}<div style="font-size:7px;opacity:0.7">${m}%</div></div>`;
+    });
+    html += '</div></div>';
+  }
+
+  html += '</div>';
+  return html;
+}
+
+// ─── Render ───
+function render() {
+  const app = document.getElementById("app");
+
+  if (state.screen === "menu") {
+    app.innerHTML = `
+      ${starsHTML}
+      <div style="min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;z-index:1;padding:24px;text-align:center">
+        <div style="animation:slideUp 0.8s ease-out">
+          <div style="font-size:64px;margin-bottom:8px;animation:float 3s ease-in-out infinite">🚀</div>
+          <h1 style="font-size:48px;font-weight:900;margin-bottom:8px;background:linear-gradient(135deg,#c7d2fe,#818cf8,#6366f1);-webkit-background-clip:text;-webkit-text-fill-color:transparent;animation:glow 3s ease-in-out infinite;letter-spacing:-1px">Typing Adventure</h1>
+          <p style="font-size:18px;color:rgba(255,255,255,0.5);margin-bottom:48px;font-weight:600">Launch your typing skills into orbit!</p>
+          <div style="display:flex;flex-direction:column;gap:16px;align-items:center">
+            <button class="btn-primary" onclick="startGame()">🚀 Start Mission</button>
+            <button class="btn-secondary" onclick="state.screen='stats';render()">📊 View Progress</button>
+          </div>
+          <div style="margin-top:48px;font-size:13px;color:rgba(255,255,255,0.25)">Level ${state.level} · ${state.totalXp} XP earned</div>
+        </div>
+      </div>`;
+    return;
+  }
+
+  if (state.screen === "stats") {
+    const practiced = ALL_KEYS.filter(k => state.keyStats[k].attempts > 0);
+    const avgM = practiced.length > 0 ? Math.round(practiced.reduce((a,k) => a + state.keyStats[k].mastery, 0) / practiced.length) : 0;
+
+    let grid = '';
+    ALL_KEYS.forEach(k => {
+      const s = state.keyStats[k];
+      const hp = s.attempts > 0;
+      const m = s.mastery;
+      let bg,bd,cl;
+      if (!hp) { bg="rgba(255,255,255,0.02)";bd="rgba(255,255,255,0.05)";cl="rgba(255,255,255,0.15)"; }
+      else if (m>=90) { bg="rgba(34,197,94,0.2)";bd="rgba(34,197,94,0.4)";cl="#86efac"; }
+      else if (m>=75) { bg="rgba(34,197,94,0.1)";bd="rgba(34,197,94,0.25)";cl="#86efac"; }
+      else if (m>=50) { bg="rgba(251,191,36,0.15)";bd="rgba(251,191,36,0.3)";cl="#fcd34d"; }
+      else { bg="rgba(239,68,68,0.15)";bd="rgba(239,68,68,0.3)";cl="#fca5a5"; }
+      grid += `<div style="background:${bg};border:1px solid ${bd};border-radius:10px;padding:8px 4px;text-align:center">
+        <div class="mono" style="font-size:18px;font-weight:800;color:${cl};text-transform:uppercase">${k}</div>
+        ${hp ? `<div style="font-size:12px;font-weight:700;color:${cl};opacity:0.8">${m}%</div><div style="font-size:9px;color:rgba(255,255,255,0.3);margin-top:2px">${s.attempts} tries</div>` : ''}
+      </div>`;
+    });
+
+    app.innerHTML = `
+      ${starsHTML}
+      <div style="min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;align-items:center;padding:40px 24px;position:relative;z-index:1;overflow:auto">
+        <div style="max-width:640px;width:100%;animation:slideUp 0.6s ease-out">
+          <button class="btn-small" onclick="state.screen='menu';render()" style="margin-bottom:24px">← Back</button>
+          <h2 style="font-size:28px;font-weight:900;margin-bottom:8px">📊 Mission Report</h2>
+          <p style="color:rgba(255,255,255,0.4);margin-bottom:24px;font-size:14px">
+            Level ${state.level} · ${state.totalXp} total XP · ${practiced.length}/26 letters practiced · ${avgM}% avg mastery
+          </p>
+          ${practiced.length === 0 ? '<div style="text-align:center;padding:48px;color:rgba(255,255,255,0.3)"><div style="font-size:48px;margin-bottom:16px">🔭</div><p>No data yet! Start a mission to see your progress.</p></div>' : `
+            <div class="card" style="padding:24px;margin-bottom:20px">
+              <h3 class="mono" style="font-size:15px;font-weight:700;color:rgba(255,255,255,0.5);margin-bottom:16px;letter-spacing:1px;text-transform:uppercase">All Letters</h3>
+              <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(56px,1fr));gap:8px">${grid}</div>
+            </div>
+            <div class="card" style="padding:24px">
+              <h3 class="mono" style="font-size:15px;font-weight:700;color:rgba(255,255,255,0.5);margin-bottom:12px;letter-spacing:1px;text-transform:uppercase">How It Works</h3>
+              <div style="font-size:14px;color:rgba(255,255,255,0.5);line-height:1.8">
+                <p style="margin-bottom:8px">🧠 <strong style="color:rgba(255,255,255,0.7)">Adaptive Learning</strong> — The app tracks your accuracy for every letter. Letters you struggle with appear more often.</p>
+                <p style="margin-bottom:8px">📈 <strong style="color:rgba(255,255,255,0.7)">Mastery Score</strong> — Each letter has a 0-100% score based on recent accuracy (70%) and overall accuracy (30%).</p>
+                <p>🎯 <strong style="color:rgba(255,255,255,0.7)">Smart Practice</strong> — Words target your weakest letters. As you level up, words get longer and harder!</p>
+              </div>
+            </div>
+            <div style="margin-top:20px;text-align:center">
+              <button class="btn-small" style="color:rgba(239,68,68,0.6);border-color:rgba(239,68,68,0.2)" onclick="if(confirm('Reset all progress?')){state.keyStats={};ALL_KEYS.forEach(k=>state.keyStats[k]={attempts:0,errors:0,recentResults:[],mastery:50,lastPracticed:0});state.level=1;state.totalXp=0;saveProgress();render()}">Reset Progress</button>
+            </div>
+          `}
+        </div>
+      </div>`;
+    return;
+  }
+
+  // ─── Game Screen ───
+  const accuracy = state.totalChars > 0 ? Math.round((state.correctChars / state.totalChars) * 100) : 100;
+  const progress = state.target.length > 0 ? (state.typed.length / state.target.length) * 100 : 0;
+  const currentKey = state.target[state.typed.length]?.toLowerCase();
+
+  // Typing text
+  let typingHTML = '';
+  state.target.split("").forEach((char, i) => {
+    let color = "rgba(255,255,255,0.2)", bg = "transparent", deco = "none", extra = "";
+    if (i < state.typed.length) {
+      if (state.errors.has(i)) { color = "#ef4444"; deco = "line-through"; }
+      else { color = "#22c55e"; }
+    } else if (i === state.typed.length) {
+      color = "#fff"; bg = "rgba(99,102,241,0.3)"; extra = "animation:pulse 1s ease-in-out infinite;padding:2px 1px;border-radius:3px;";
+    }
+    typingHTML += `<span style="color:${color};background:${bg};text-decoration:${deco};${extra}transition:color 0.15s">${char === " " ? "&nbsp;" : char}</span>`;
+  });
+
+  // Rocket
+  const rocketBottom = Math.min(progress, 98);
+
+  // Finger hint
+  let fingerHint = '';
+  if (currentKey && FINGER_MAP[currentKey] && !state.roundComplete) {
+    fingerHint = `<div style="margin-top:12px;font-size:12px;color:rgba(255,255,255,0.3)" class="mono">Next: <span style="color:#818cf8;font-weight:700">${currentKey.toUpperCase()}</span> — ${FINGER_MAP[currentKey]}</div>`;
+  }
+
+  // Round complete overlay
+  let completeHTML = '';
+  if (state.roundComplete) {
+    completeHTML = `
+      <div style="background:rgba(99,102,241,0.1);border-radius:20px;border:1px solid rgba(99,102,241,0.2);padding:28px;text-align:center;animation:slideUp 0.5s ease-out">
+        <div style="font-size:36px;margin-bottom:8px">🎉</div>
+        <div style="font-size:22px;font-weight:800;margin-bottom:4px">Mission Complete!</div>
+        <div style="font-size:15px;color:rgba(255,255,255,0.5);margin-bottom:16px">
+          ${state.wpm} WPM · ${accuracy}% accuracy · Best streak: ${state.bestStreak}
+        </div>
+        ${state.funFact ? `<div style="background:rgba(255,255,255,0.04);border-radius:12px;padding:12px 20px;font-size:14px;color:rgba(255,255,255,0.6);margin-bottom:20px;font-style:italic">${state.funFact}</div>` : ''}
+        <button class="btn-primary" style="font-size:18px;padding:14px 40px" onclick="startRound()">🚀 Next Mission</button>
+      </div>`;
+  }
+
+  app.innerHTML = `
+    ${starsHTML}
+    <input id="hinput" class="hidden-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+    <div style="position:relative;z-index:1;width:100%;max-width:800px;margin:0 auto;padding:20px 24px;display:flex;flex-direction:column;gap:16px" onclick="document.getElementById('hinput').focus()">
+
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <button class="btn-small" onclick="state.screen='menu';render()">← Menu</button>
+        <div class="mono" style="font-size:13px;color:rgba(255,255,255,0.3)">Round ${state.roundsPlayed + 1} · Level ${state.level}</div>
+      </div>
+
+      <div class="card stats-bar" style="display:flex;gap:20px;justify-content:center;flex-wrap:wrap;padding:12px 24px">
+        ${[{l:"WPM",v:state.wpm,i:"⚡"},{l:"Accuracy",v:accuracy+"%",i:"🎯"},{l:"Streak",v:state.streak,i:"🔥"},{l:"Level",v:state.level,i:"🏅"},{l:"XP",v:state.xp,i:"💎"}].map(s =>
+          `<div style="text-align:center;min-width:64px">
+            <div class="mono" style="font-size:11px;color:rgba(255,255,255,0.4);font-weight:600;letter-spacing:1px;text-transform:uppercase">${s.i} ${s.l}</div>
+            <div class="mono stat-value" style="font-size:22px;font-weight:800;color:#e0e7ff;margin-top:2px">${s.v}</div>
+          </div>`
+        ).join('')}
+      </div>
+
+      ${state.encouragement ? `<div style="text-align:center;font-size:22px;font-weight:800;color:#fbbf24;animation:popIn 0.3s ease-out">${state.encouragement}</div>` : ''}
+
+      <div style="display:flex;gap:16px;align-items:stretch">
+        <div class="rocket-col" style="height:200px;position:relative;width:48px;display:flex;align-items:center;justify-content:center">
+          <div style="position:absolute;bottom:0;width:4px;height:100%;background:linear-gradient(to top,rgba(99,102,241,0.1),rgba(99,102,241,0.3));border-radius:4px"></div>
+          <div style="position:absolute;bottom:${rocketBottom}%;font-size:32px;transition:bottom 0.5s cubic-bezier(0.34,1.56,0.64,1);filter:drop-shadow(0 0 8px rgba(251,191,36,0.6))">🚀</div>
+          ${progress > 5 ? `<div style="position:absolute;bottom:${Math.max(rocketBottom-6,0)}%;font-size:14px;opacity:0.7;animation:flicker 0.3s infinite">🔥</div>` : ''}
+        </div>
+        <div class="card" style="flex:1;padding:28px 32px;display:flex;flex-direction:column;justify-content:center;min-height:160px;position:relative;overflow:hidden">
+          <div style="position:absolute;top:0;left:0;height:3px;border-radius:3px;width:${progress}%;background:linear-gradient(90deg,#6366f1,#818cf8);transition:width 0.2s ease"></div>
+          <div class="mono typing-text" style="font-size:26px;line-height:1.8;letter-spacing:1.5px;font-weight:500;word-break:break-word">${typingHTML}</div>
+          ${fingerHint}
+        </div>
+      </div>
+
+      ${completeHTML}
+
+      <div style="display:flex;justify-content:center">${renderKeyboard(currentKey)}</div>
+
+      ${renderMastery()}
+
+      <div style="text-align:center;font-size:11px;color:rgba(255,255,255,0.15);padding:8px 0">
+        Press ESC for menu · Tap anywhere to focus
+      </div>
+    </div>`;
+
+  // Re-focus input
+  document.getElementById("hinput")?.focus();
+}
+
+// Handle input on mobile (iPad soft keyboard)
+document.addEventListener("input", function(e) {
+  const inp = document.getElementById("hinput");
+  if (!inp || state.screen !== "game" || state.roundComplete) return;
+  const val = inp.value;
+  if (val.length > 0) {
+    const lastChar = val[val.length - 1];
+    handleKey({ key: lastChar, preventDefault: () => {} });
+    inp.value = "";
+  }
+});
+
+// Also handle physical keyboards
+document.addEventListener("keydown", function(e) {
+  if (state.screen === "game" && !state.roundComplete) {
+    if (e.key === "Backspace" || e.key === "Escape") {
+      handleKey(e);
+    }
+  }
+});
+
+// Initial render
+render();
+</script>
+</body>
+</html>
